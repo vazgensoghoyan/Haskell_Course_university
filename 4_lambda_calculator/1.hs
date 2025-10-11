@@ -162,7 +162,27 @@ subst v n m@(Lam x expr)
 
 -- TASK 2
 
+infix 1 `alphaEq`
 
+alphaEq :: Expr -> Expr -> Bool
+alphaEq e1 e2 = helper [] [] e1 e2
+  where
+    helper :: [Symb] -> [Symb] -> Expr -> Expr -> Bool
+    helper env1 env2 (Var x) (Var y) =
+      case (getIndex x env1, getIndex y env2) of
+        (Just i1, Just i2) -> i1 == i2
+        (Nothing, Nothing) -> x == y
+    helper env1 env2 (f1 :@ a1) (f2 :@ a2) = helper env1 env2 f1 f2 && helper env1 env2 a1 a2
+    helper env1 env2 (Lam x e1) (Lam y e2) = helper (x:env1) (y:env2) e1 e2
+    helper _ _ _ _ = False
+
+    getIndex :: Eq a => a -> [a] -> Maybe Int
+    getIndex x = helper' 0
+      where
+        helper' _ [] = Nothing
+        helper' i (y:ys)
+          | x == y    = Just i
+          | otherwise = helper' (i+1) ys
 
 -- TASK 3
 -- USING 3

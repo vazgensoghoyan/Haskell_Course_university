@@ -80,6 +80,9 @@ nf expr = maybe expr nf (reduceOnce expr)
 
 -- TASK 5
 
+infix 1 `betaEq`
 
+betaEq :: Expr -> Expr -> Bool 
+betaEq f1 f2 = nf f1 `alphaEq` nf f2
 
 -- TASK 6

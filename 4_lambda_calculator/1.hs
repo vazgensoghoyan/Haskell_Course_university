@@ -1,13 +1,27 @@
 import Data.List (union)
+import Text.Read ( Read(readPrec) )
 
 type Symb = String 
 
 infixl 2 :@
 
-data Expr = Var Symb
-          | Expr :@ Expr
-          | Lam Symb Expr
-          deriving (Eq, Read, Show)
+data Expr = Var Symb | Expr :@ Expr | Lam Symb Expr
+    deriving Eq
+
+-- TASK 6
+
+instance Show Expr where
+    showsPrec _ (Var symb) = showString symb
+    showsPrec d (expr1 :@ expr2) =
+        showParen (d > 2) $
+            showsPrec 2 expr1 . showString " " . showsPrec 2 expr2
+    showsPrec d (Lam symb expr) =
+        showParen (d > 1) $
+            showString "\\" . showString symb . showString " -> " . showsPrec 1 expr
+
+instance Read Expr where
+    readPrec = undefined
+
 
 -- TASK 1
 freeVars :: Expr -> [Symb]
@@ -84,5 +98,3 @@ infix 1 `betaEq`
 
 betaEq :: Expr -> Expr -> Bool 
 betaEq f1 f2 = nf f1 `alphaEq` nf f2
-
--- TASK 6

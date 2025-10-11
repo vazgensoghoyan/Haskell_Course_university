@@ -54,6 +54,7 @@ alphaEq e1 e2 = helper [] [] e1 e2
       case (getIndex x env1, getIndex y env2) of
         (Just i1, Just i2) -> i1 == i2
         (Nothing, Nothing) -> x == y
+        _ -> False
     helper env1 env2 (f1 :@ a1) (f2 :@ a2) = helper env1 env2 f1 f2 && helper env1 env2 a1 a2
     helper env1 env2 (Lam x e1) (Lam y e2) = helper (x:env1) (y:env2) e1 e2
     helper _ _ _ _ = False
@@ -68,6 +69,14 @@ alphaEq e1 e2 = helper [] [] e1 e2
 
 -- TASK 3
 
+reduceOnce :: Expr -> Maybe Expr
+reduceOnce (Var s) = Nothing
+reduceOnce (Lam s body) = fmap (Lam s) (reduceOnce body)
+reduceOnce (Lam x body :@ arg) = Just (subst x arg body)
+reduceOnce (f :@ a) = 
+    case reduceOnce f of
+        Just f' -> Just (f' :@ a)
+        Nothing -> fmap (f :@) (reduceOnce a)
 
 -- USING 3
 -- TASK 4

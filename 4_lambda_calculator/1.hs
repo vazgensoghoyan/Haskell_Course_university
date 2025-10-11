@@ -15,11 +15,6 @@ freeVars (Var s) = [s]
 freeVars (t1 :@ t2) = freeVars t1 `union` freeVars t2
 freeVars (Lam s expr) = filter (/= s) (freeVars expr) 
 
-boundVars :: Expr -> [Symb]
-boundVars (Var s) = []
-boundVars (t1 :@ t2) = boundVars t1 ++ boundVars t2
-boundVars (Lam s expr) = s : boundVars expr 
-
 fresh :: Symb -> [Symb] -> Symb
 fresh x used
     | x `elem` used = fresh (x ++ "'") used
@@ -78,7 +73,13 @@ reduceOnce (f :@ a) =
         Just f' -> Just (f' :@ a)
         Nothing -> fmap (f :@) (reduceOnce a)
 
--- USING 3
 -- TASK 4
+
+nf :: Expr -> Expr 
+nf expr = maybe expr nf (reduceOnce expr)
+
 -- TASK 5
+
+
+
 -- TASK 6

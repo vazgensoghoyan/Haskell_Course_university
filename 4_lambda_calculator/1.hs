@@ -20,8 +20,88 @@ instance Show Expr where
             showString "\\" . showString symb . showString " -> " . showsPrec 1 expr
 
 instance Read Expr where
-    readPrec = undefined
+    readsPrec _ s =
+        case parseExpr (dropWhile (==' ') s) of
+            Just (e, rest) -> [(e, rest)]
+            Nothing        -> []
 
+-- Парсим выражение
+parseExpr :: String -> Maybe (Expr, String)
+parseExpr s
+    | null s = Nothing
+    | head s == '\\' = parseLam s
+    | head s == '('  = parseParens s
+    | otherwise      = parseAppOrVar s
+
+-- Лямбда с одним или несколькими аргументами: \x1 x2 -> body
+parseLam :: String -> Maybe (Expr, String)
+parseLam ('\\':rest) = do
+    let (args, rest1) = spanArgs (dropWhile (==' ') rest)
+    case stripPrefix "->" rest1 of
+        Just rest2 -> do
+            (body, rest3) <- parseExpr rest2
+            return (foldr Lam body args, rest3)
+        Nothing -> Nothing
+parseLam _ = Nothing
+
+parseAppOrVar :: String -> Maybe (Expr, String)
+parseAppOrVar s = do
+    let (terms, rest) = parseTerms s
+    case terms of
+        []  -> Nothing
+        [t] -> Just (t, rest)
+        ts  -> Just (foldl1 (:@) ts, rest)
+
+parseParens :: String -> Maybe (Expr, String)
+parseParens ('(':rest) = do
+    (e, rest1) <- parseExpr rest
+    rest2 <- stripPrefix ")" rest1
+    return (e, rest2)
+parseParens _ = Nothing
+
+parseTerms :: String -> ([Expr], String)
+parseTerms s = go (dropWhile (==' ') s) []
+  where
+    go "" acc = (reverse acc, "")
+    go str acc
+        | head str == '(' =
+            case parseParens str of
+                Just (e, rest) -> go (dropWhile (==' ') rest) (e:acc)
+                Nothing -> (reverse acc, str)
+        | head str == '\\' =
+            case parseLam str of
+                Just (e, rest) -> go (dropWhile (==' ') rest) (e:acc)
+                Nothing -> (reverse acc, str)
+        | otherwise =
+            let (v, rest) = span isVarChar str
+            in if null v then (reverse acc, str)
+               else go (dropWhile (==' ') rest) (Var v:acc)
+
+spanArgs :: String -> ([Symb], String)
+spanArgs s = go (dropWhile (==' ') s) []
+  where
+    go "" acc = (reverse acc, "")
+    go str acc
+        | "->" `isPrefixOf` str = (reverse acc, str)
+        | otherwise =
+            let (v, rest) = span isVarChar str
+            in if null v then (reverse acc, str)
+               else go (dropWhile (==' ') rest) (v:acc)
+
+isVarChar :: Char -> Bool
+isVarChar c = c `elem` ('_' : ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'])
+
+stripPrefix :: String -> String -> Maybe String
+stripPrefix [] xs         = Just xs
+stripPrefix _ []          = Nothing
+stripPrefix (p:ps) (x:xs)
+    | p == x              = stripPrefix ps xs
+    | otherwise           = Nothing
+
+isPrefixOf :: String -> String -> Bool
+isPrefixOf [] _          = True
+isPrefixOf _ []          = False
+isPrefixOf (a:as) (b:bs) = a==b && isPrefixOf as bs
 
 -- TASK 1
 freeVars :: Expr -> [Symb]

@@ -1,7 +1,6 @@
 -- main data
 
 data Tree a = Leaf | Node (Tree a) a (Tree a) 
-    deriving Show
 
 -- for tests
 
@@ -34,4 +33,26 @@ instance Eq a => Eq (Tree a) where
             helper _ _ = False
 
 -- task 3
+instance Functor Tree where 
+    fmap f Leaf = Leaf
+    fmap f (Node left val right) = Node (fmap f left) (f val) (fmap f right)
 
+-- task 4
+instance Show a => Show (Tree a) where 
+    show Leaf = "{}"
+    show (Node right val left) =
+        "<" ++ show right ++ show val ++ show left ++ ">"
+
+-- task 5
+instance Read a => Read (Tree a) where
+    readsPrec _ s =
+        case s of
+            ('{':'}':rest) ->
+                [(Leaf, rest)]
+            ('<':rest) ->
+                [ (Node left val right, right_rest)
+                    | (left, left_rest) <- reads rest
+                    , (val :: a, val_rest)  <- reads left_rest
+                    , (right, '>':right_rest) <- reads val_rest
+                ]
+            _ -> []

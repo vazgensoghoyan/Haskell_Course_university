@@ -23,3 +23,15 @@ elemTree el tr = helper [tr] el
             | otherwise = helper (rem ++ [l, r]) el 
 
 -- task 2
+instance Eq a => Eq (Tree a) where 
+    x == y = helper [x] [y] 
+        where
+            helper :: Eq a => [Tree a] -> [Tree a] -> Bool
+            helper [] [] = True
+            helper (Leaf:xs) (Leaf:ys) = helper xs ys
+            helper ((Node l1 v1 r1):xs) ((Node l2 v2 r2):ys) = 
+                v1 == v2 && helper (xs ++ [l1, r1]) (ys ++ [l2, r2])
+            helper _ _ = False
+
+-- task 3
+

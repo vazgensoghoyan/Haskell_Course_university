@@ -1,15 +1,21 @@
-import Data.List (union)
-import Text.Read ( Read(readPrec) )
+{-# LANGUAGE FlexibleInstances #-}
 
-type Symb = String 
+import Data.List ( isPrefixOf, union )
+
+import Text.Read
+import Data.Text (strip)
+import Data.Char (isSpace)
+
+type Symb = String
 
 infixl 2 :@
 
 data Expr = Var Symb | Expr :@ Expr | Lam Symb Expr
-    deriving Eq
+    deriving (Eq, Show)
 
 -- TASK 6
 
+{-
 instance Show Expr where
     showsPrec _ (Var symb) = showString symb
     showsPrec d (expr1 :@ expr2) =
@@ -18,108 +24,93 @@ instance Show Expr where
     showsPrec d (Lam symb expr) =
         showParen (d > 1) $
             showString "\\" . showString symb . showString " -> " . showsPrec 1 expr
+-}
 
 instance Read Expr where
-    readsPrec _ s =
-        case parseExpr (dropWhile (==' ') s) of
-            Just (e, rest) -> [(e, rest)]
-            Nothing        -> []
+    readsPrec :: Int -> ReadS Expr
+    readsPrec _ s = [(readApps s, "")]
 
--- Парсим выражение
-parseExpr :: String -> Maybe (Expr, String)
-parseExpr s
-    | null s = Nothing
-    | head s == '\\' = parseLam s
-    | head s == '('  = parseParens s
-    | otherwise      = parseAppOrVar s
+readApps :: String -> Expr
+readApps "" = error "readExpr: пустая строка"
+readApps s = foldl1 (:@) (map readExpr (splitTopLevel s))
 
--- Лямбда с одним или несколькими аргументами: \x1 x2 -> body
-parseLam :: String -> Maybe (Expr, String)
-parseLam ('\\':rest) = do
-    let (args, rest1) = spanArgs (dropWhile (==' ') rest)
-    case stripPrefix "->" rest1 of
-        Just rest2 -> do
-            (body, rest3) <- parseExpr rest2
-            return (foldr Lam body args, rest3)
-        Nothing -> Nothing
-parseLam _ = Nothing
+readExpr :: String -> Expr
+readExpr "" = error "readExpr: пустая строка"
+readExpr s@(c:_)
+    | c == ' '  = readExpr $ trim s
+    | c == '\\' = readLam s
+    | c == '('  = readApps $ fst $ getParens s
+    | otherwise = Var s
 
-parseAppOrVar :: String -> Maybe (Expr, String)
-parseAppOrVar s = do
-    let (terms, rest) = parseTerms s
-    case terms of
-        []  -> Nothing
-        [t] -> Just (t, rest)
-        ts  -> Just (foldl1 (:@) ts, rest)
+readLam :: String -> Expr
+readLam s = case s of
+    ('\\':rem) ->
+        let (args, body) = splitBy rem "->"
+        in createLam (words args) (readApps (trim body))
+    _ -> error "readLam: строка не начинается с '\\'"
 
-parseParens :: String -> Maybe (Expr, String)
-parseParens ('(':rest) = do
-    (e, rest1) <- parseExpr rest
-    rest2 <- stripPrefix ")" rest1
-    return (e, rest2)
-parseParens _ = Nothing
+createLam :: [Symb] -> Expr -> Expr
+createLam xs expr = foldr Lam expr xs
 
-parseTerms :: String -> ([Expr], String)
-parseTerms s = go (dropWhile (==' ') s) []
+getParens :: String -> (String, String)
+getParens ('(':rem) = helper 1 "" rem
+    where
+        helper :: Int -> String -> String -> (String, String)
+        helper d s1 "" = (s1, "")
+        helper d s1 (s:s2)
+            | d + l == 0 = (s1, s2)
+            | otherwise = helper (d + l) (s1++[s]) s2
+            where
+                l = case s of
+                    '(' -> 1
+                    ')' -> -1
+                    _ -> 0
+getParens _ = error "getParens: строка не начинается с '('"
+
+splitBy :: String -> String -> (String, String)
+splitBy "" _ = ("", "")
+splitBy str@(x:xs) splitter
+    | splitter `isPrefixOf` str = ("", drop (length splitter) str)
+    | otherwise =
+        let (s1, s2) = splitBy xs splitter
+        in (x:s1, s2)
+
+splitTopLevel :: String -> [String]
+splitTopLevel s = go s 0 "" []
   where
-    go "" acc = (reverse acc, "")
-    go str acc
-        | head str == '(' =
-            case parseParens str of
-                Just (e, rest) -> go (dropWhile (==' ') rest) (e:acc)
-                Nothing -> (reverse acc, str)
-        | head str == '\\' =
-            case parseLam str of
-                Just (e, rest) -> go (dropWhile (==' ') rest) (e:acc)
-                Nothing -> (reverse acc, str)
-        | otherwise =
-            let (v, rest) = span isVarChar str
-            in if null v then (reverse acc, str)
-               else go (dropWhile (==' ') rest) (Var v:acc)
+    go [] _ acc res
+      | null acc  = reverse res
+      | otherwise = reverse (acc : res)
+    go (c:cs) depth acc res
+      | c == '('  = go cs (depth + 1) (acc ++ [c]) res
+      | c == ')'  = go cs (depth - 1) (acc ++ [c]) res
+      | c == ' ' && depth == 0
+                  = if null acc
+                    then go cs depth "" res
+                    else go cs depth "" (acc:res)
+      | otherwise = go cs depth (acc ++ [c]) res
 
-spanArgs :: String -> ([Symb], String)
-spanArgs s = go (dropWhile (==' ') s) []
-  where
-    go "" acc = (reverse acc, "")
-    go str acc
-        | "->" `isPrefixOf` str = (reverse acc, str)
-        | otherwise =
-            let (v, rest) = span isVarChar str
-            in if null v then (reverse acc, str)
-               else go (dropWhile (==' ') rest) (v:acc)
-
-isVarChar :: Char -> Bool
-isVarChar c = c `elem` ('_' : ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'])
-
-stripPrefix :: String -> String -> Maybe String
-stripPrefix [] xs         = Just xs
-stripPrefix _ []          = Nothing
-stripPrefix (p:ps) (x:xs)
-    | p == x              = stripPrefix ps xs
-    | otherwise           = Nothing
-
-isPrefixOf :: String -> String -> Bool
-isPrefixOf [] _          = True
-isPrefixOf _ []          = False
-isPrefixOf (a:as) (b:bs) = a==b && isPrefixOf as bs
+trim :: String -> String
+trim = f . f
+  where f = reverse . dropWhile isSpace
 
 -- TASK 1
 freeVars :: Expr -> [Symb]
 freeVars (Var s) = [s]
 freeVars (t1 :@ t2) = freeVars t1 `union` freeVars t2
-freeVars (Lam s expr) = filter (/= s) (freeVars expr) 
+freeVars (Lam s expr) = filter (/= s) (freeVars expr)
 
 fresh :: Symb -> [Symb] -> Symb
 fresh x used
     | x `elem` used = fresh (x ++ "'") used
     | otherwise     = x
 
-subst :: Symb -> Expr -> Expr -> Expr 
+subst :: Symb -> Expr -> Expr -> Expr
 
 subst v n m@(Var symb)
     | v == symb = n
     | otherwise = m
-subst v n m@(expr1 :@ expr2) = 
+subst v n m@(expr1 :@ expr2) =
     subst v n expr1 :@ subst v n expr2
 subst v n m@(Lam x expr)
     | v == x = m
@@ -128,7 +119,7 @@ subst v n m@(Lam x expr)
             x'    = fresh x used
             body' = subst x (Var x') expr
         in Lam x' (subst v n body')
-    | otherwise = 
+    | otherwise =
         Lam x (subst v n expr)
 
 -- TASK 2
@@ -162,19 +153,19 @@ reduceOnce :: Expr -> Maybe Expr
 reduceOnce (Var s) = Nothing
 reduceOnce (Lam s body) = fmap (Lam s) (reduceOnce body)
 reduceOnce (Lam x body :@ arg) = Just (subst x arg body)
-reduceOnce (f :@ a) = 
+reduceOnce (f :@ a) =
     case reduceOnce f of
         Just f' -> Just (f' :@ a)
         Nothing -> fmap (f :@) (reduceOnce a)
 
 -- TASK 4
 
-nf :: Expr -> Expr 
+nf :: Expr -> Expr
 nf expr = maybe expr nf (reduceOnce expr)
 
 -- TASK 5
 
 infix 1 `betaEq`
 
-betaEq :: Expr -> Expr -> Bool 
+betaEq :: Expr -> Expr -> Bool
 betaEq f1 f2 = nf f1 `alphaEq` nf f2

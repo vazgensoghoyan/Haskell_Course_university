@@ -1,5 +1,3 @@
-{-# LANGUAGE FlexibleInstances #-}
-
 import Data.List ( isPrefixOf, union )
 
 import Text.Read
@@ -13,22 +11,6 @@ infixl 2 :@
 data Expr = Var Symb | Expr :@ Expr | Lam Symb Expr
     deriving Eq
 
--- DATA
-
--- компактно записанные переменные 
-[a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z] = map (Var . (:[])) "abcdefghijklmnopqrstuvwxyz"
-
--- Некоторые составные выражения
-expr1 = a
-expr2 = Lam "x" a
-expr3 = Lam "x" (a :@ b)
-expr4 = a :@ b
-expr5 = a :@ b :@ c
-expr6 = Lam "x" (Lam "y" (x :@ y :@ z))
-expr7 = Lam "x" (x :@ x) :@ Lam "y" (y :@ y)
-expr8 = Lam "f" (Lam "x" (f :@ (x :@ x)) :@ Lam "x" (f :@ (x :@ x)))
-
-
 -- TASK 6
 
 instance Show Expr where
@@ -38,24 +20,9 @@ instance Show Expr where
         showParen (d > 0) $
             showString "\\" . showString x . showString " -> " . shows e
 
-    showsPrec d e = showParen (d > 2) (showsApp e)
-        where
-            flattenApp :: Expr -> [Expr]
-            flattenApp (f :@ a) = flattenApp f ++ [a]
-            flattenApp x = [x]
-
-            showsApp :: Expr -> ShowS
-            showsApp expr =
-                let args = flattenApp expr
-                in case args of
-                    []     -> id
-                    (h:ts) -> showsPrec 3 h . foldl (\acc a -> acc . showString " " . showArg a) id ts
-
-            showArg :: Expr -> ShowS
-            showArg v@(Var _) = showsPrec 3 v
-            showArg lam@(Lam _ _) = showParen True (shows lam)
-            showArg app@(_ :@ _) = showParen True (showsPrec 2 app)
-
+    showsPrec d (f :@ a) =
+        showParen (d > 2) $
+            showsPrec 3 f . showString " " . showsPrec 3 a
 
 instance Read Expr where
     readsPrec _ s = [(readApps s, "")]

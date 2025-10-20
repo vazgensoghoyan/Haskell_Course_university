@@ -11,36 +11,73 @@ type Symb = String
 infixl 2 :@
 
 data Expr = Var Symb | Expr :@ Expr | Lam Symb Expr
-    deriving (Eq, Show)
+    deriving Eq
+
+-- DATA
+
+-- компактно записанные переменные 
+[a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z] = map (Var . (:[])) "abcdefghijklmnopqrstuvwxyz"
+
+-- Некоторые составные выражения
+expr1 = a
+expr2 = Lam "x" a
+expr3 = Lam "x" (a :@ b)
+expr4 = a :@ b
+expr5 = a :@ b :@ c
+expr6 = Lam "x" (Lam "y" (x :@ y :@ z))
+expr7 = Lam "x" (x :@ x) :@ Lam "y" (y :@ y)
+expr8 = Lam "f" (Lam "x" (f :@ (x :@ x)) :@ Lam "x" (f :@ (x :@ x)))
+
 
 -- TASK 6
 
-{-
 instance Show Expr where
-    showsPrec _ (Var symb) = showString symb
-    showsPrec d (expr1 :@ expr2) =
-        showParen (d > 2) $
-            showsPrec 2 expr1 . showString " " . showsPrec 2 expr2
-    showsPrec d (Lam symb expr) =
-        showParen (d > 1) $
-            showString "\\" . showString symb . showString " -> " . showsPrec 1 expr
--}
+    showsPrec _ (Var x) = showString x
+
+    showsPrec d (Lam x e) =
+        showParen (d > 0) $
+            showString "\\" . showString x . showString " -> " . shows e
+
+    showsPrec d e = showParen (d > 2) (showsApp e)
+        where
+            flattenApp :: Expr -> [Expr]
+            flattenApp (f :@ a) = flattenApp f ++ [a]
+            flattenApp x = [x]
+
+            showsApp :: Expr -> ShowS
+            showsApp expr =
+                let args = flattenApp expr
+                in case args of
+                    []     -> id
+                    (h:ts) -> showsPrec 3 h . foldl (\acc a -> acc . showString " " . showArg a) id ts
+
+            showArg :: Expr -> ShowS
+            showArg v@(Var _) = showsPrec 3 v
+            showArg lam@(Lam _ _) = showParen True (shows lam)
+            showArg app@(_ :@ _) = showParen True (showsPrec 2 app)
+
 
 instance Read Expr where
-    readsPrec :: Int -> ReadS Expr
     readsPrec _ s = [(readApps s, "")]
 
 readApps :: String -> Expr
-readApps "" = error "readExpr: пустая строка"
-readApps s = foldl1 (:@) (map readExpr (splitTopLevel s))
+readApps s = foldl1 (:@) (readExpr s)
 
-readExpr :: String -> Expr
+readExpr :: String -> [Expr]
 readExpr "" = error "readExpr: пустая строка"
 readExpr s@(c:_)
     | c == ' '  = readExpr $ trim s
-    | c == '\\' = readLam s
-    | c == '('  = readApps $ fst $ getParens s
-    | otherwise = Var s
+    | c == '\\' = [readLam s]
+    | c == '('  =
+        let (body, rem) = getParens s
+        in case trim rem of
+            "" -> [readApps body]
+            _ -> readExpr body ++ readExpr rem
+    | otherwise =
+        let (v, rem) = splitBy s " "
+        in case trim rem of
+            "" -> [Var v]
+            _ -> Var v : readExpr rem
 
 readLam :: String -> Expr
 readLam s = case s of
@@ -74,21 +111,6 @@ splitBy str@(x:xs) splitter
     | otherwise =
         let (s1, s2) = splitBy xs splitter
         in (x:s1, s2)
-
-splitTopLevel :: String -> [String]
-splitTopLevel s = go s 0 "" []
-  where
-    go [] _ acc res
-      | null acc  = reverse res
-      | otherwise = reverse (acc : res)
-    go (c:cs) depth acc res
-      | c == '('  = go cs (depth + 1) (acc ++ [c]) res
-      | c == ')'  = go cs (depth - 1) (acc ++ [c]) res
-      | c == ' ' && depth == 0
-                  = if null acc
-                    then go cs depth "" res
-                    else go cs depth "" (acc:res)
-      | otherwise = go cs depth (acc ++ [c]) res
 
 trim :: String -> String
 trim = f . f

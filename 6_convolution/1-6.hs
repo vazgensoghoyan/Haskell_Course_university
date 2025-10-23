@@ -12,15 +12,28 @@ fun1 (a, b)
 
 -- task 2
 tails' :: [a] -> [[a]]
-tails' = foldr fun ini
-fun :: a -> [[a]] -> [[a]]
-fun x arr = (x : head arr) : arr
-ini :: [[a]]
-ini = [[]]
+tails' = foldr fun2 ini2
+fun2 :: a -> [[a]] -> [[a]]
+fun2 x arr = (x : head arr) : arr
+ini2 :: [[a]]
+ini2 = [[]]
 
 inits' :: [a] -> [[a]]
-inits' = foldr fun' ini'
-fun' :: a -> [[a]] -> [[a]]
-fun' x arr = [] : map (x:) arr
-ini' :: [[a]]
-ini' = [[]]
+inits' = foldr fun2' ini2'
+fun2' :: a -> [[a]] -> [[a]]
+fun2' x arr = [] : map (x:) arr
+ini2' :: [[a]]
+ini2' = [[]]
+
+-- task 3
+reverse' :: [a] -> [a]
+reverse' = foldr fun' ini'
+fun' :: a -> [a] -> [a]
+fun' a arr = arr ++ [a]
+ini' = []
+
+reverse'' :: [a] -> [a]
+reverse'' = foldl fun'' ini''
+fun'' :: [a] -> a -> [a]
+fun'' arr a = a:arr
+ini'' = []

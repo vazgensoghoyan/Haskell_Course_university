@@ -62,3 +62,38 @@ fun f head tail v = tail (v `f` head)
 
 ini :: a -> a
 ini = id
+
+-- task 5
+data Tree a = Nil | Branch (Tree a) a (Tree a)  deriving (Eq, Show)
+
+newtype Preorder a = PreO (Tree a) deriving (Eq, Show)
+newtype Postorder a = PostO (Tree a) deriving (Eq, Show)
+newtype Levelorder a = LevelO (Tree a) deriving (Eq, Show)
+
+instance Foldable Tree where
+    foldMap :: Monoid m => (a -> m) -> Tree a -> m
+    foldMap _ Nil = mempty
+    foldMap f (Branch l x r) = foldMap f l <> f x <> foldMap f r
+
+instance Foldable Preorder where
+    foldMap :: Monoid m => (a -> m) -> Preorder a -> m
+    foldMap _ (PreO Nil) = mempty
+    foldMap f (PreO (Branch l x r)) = 
+        f x <> foldMap f (PreO l) <> foldMap f (PreO r)
+
+
+instance Foldable Postorder where
+    foldMap :: Monoid m => (a -> m) -> Postorder a -> m
+    foldMap _ (PostO Nil) = mempty
+    foldMap f (PostO (Branch l x r)) = 
+        foldMap f (PostO l) <> foldMap f (PostO r) <> f x
+
+instance Foldable Levelorder where
+    foldMap :: Monoid m => (a -> m) -> Levelorder a -> m
+    foldMap f (LevelO t) = go [t] []
+        where
+            go [] [] = mempty
+            go [] ys = go (reverse ys) []
+            go (Nil:xs) ys = go xs ys
+            go (Branch l x r : xs) ys =
+                f x <> go xs (r:l:ys)

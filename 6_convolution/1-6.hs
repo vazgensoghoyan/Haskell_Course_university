@@ -63,7 +63,7 @@ fun f head tail v = tail (v `f` head)
 ini :: a -> a
 ini = id
 
--- task 5
+-- task 6
 data Tree a = Nil | Branch (Tree a) a (Tree a)  deriving (Eq, Show)
 
 newtype Preorder a = PreO (Tree a) deriving (Eq, Show)

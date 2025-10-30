@@ -1,6 +1,8 @@
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE FlexibleContexts #-}
 
+import Control.Applicative (ZipList(ZipList), getZipList)
+
 
 -- task 1
 
@@ -29,4 +31,16 @@ newtype Cmps f g x = Cmps { getCmps :: f (g x) }
 instance (Functor f, Functor g) => Functor (Cmps f g) where
   fmap :: (a -> b) -> Cmps f g a -> Cmps f g b
   fmap func (Cmps cmps) = Cmps ( fmap ( fmap func ) cmps )
-  
+  -- это доказательство того, что композиция функторов - функтор
+
+
+-- task 3
+
+infixl 4 >$<
+infixl 4 >*<
+
+(>$<) :: (a -> b) -> [a] -> [b]
+f >$< xs = getZipList (f <$> ZipList xs)
+
+(>*<) :: [a -> b] -> [a] -> [b]
+fs >*< xs = getZipList (ZipList fs <*> ZipList xs)

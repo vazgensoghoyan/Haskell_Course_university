@@ -1,6 +1,7 @@
 {-# LANGUAGE InstanceSigs #-}
 import Control.Applicative
 import Data.Char
+import Data.Traversable (fmapDefault, foldMapDefault)
 
 -- task 1
 
@@ -46,13 +47,12 @@ instance Traversable NEList where
 
 -- SOME CODE FOR THE TASK
 
-newtype Parser tok a =
-  Parser { runParser :: [tok] ->  Maybe ([tok],a) }
+newtype Parser tok a = Parser { runParser :: [tok] ->  Maybe ([tok],a) }
 
 charA :: Parser Char Char
 charA = Parser f where
-  f (c:cs) | c == 'A' = Just (cs,c)
-  f _                 = Nothing
+    f (c:cs) | c == 'A' = Just (cs,c)
+    f _                 = Nothing
 
 {-
 GHCi> runParser charA "ABC"
@@ -63,8 +63,8 @@ Nothing
 
 satisfy :: (tok -> Bool) -> Parser tok tok
 satisfy pr = Parser f where
-  f (c:cs) | pr c  = Just (cs,c)
-  f _              = Nothing
+    f (c:cs) | pr c  = Just (cs,c)
+    f _              = Nothing
 
 {-
 GHCi> runParser (satisfy isUpper) "ABC"
@@ -83,8 +83,8 @@ digit :: Parser Char Int
 digit = digitToInt <$> satisfy isDigit
 -- для этого
 instance Functor (Parser tok) where
-  fmap :: (a -> b) -> Parser tok a -> Parser tok b
-  fmap g (Parser p) = Parser $ (fmap . fmap . fmap) g p
+    fmap :: (a -> b) -> Parser tok a -> Parser tok b
+    fmap g (Parser p) = Parser $ (fmap . fmap . fmap) g p
 {-
 GHCi> runParser digit "12AB"
 Just ("2AB",1)
@@ -99,15 +99,15 @@ pure: парсер, всегда возвращающий заданное зн�
 второго, а после этого применить первые ко вторым.
 -}
 instance Applicative (Parser tok) where
-  pure :: a -> Parser tok a
-  pure x = Parser $ \s -> Just (s, x)
-  (<*>) :: Parser tok (a -> b) -> Parser tok a -> Parser tok b
-  Parser u <*> Parser v = Parser f where
-    f xs = case u xs of 
-      Nothing       -> Nothing
-      Just (xs', g) -> case v xs' of 
-        Nothing        -> Nothing
-        Just (xs'', x) -> Just (xs'', g x)
+    pure :: a -> Parser tok a
+    pure x = Parser $ \s -> Just (s, x)
+    (<*>) :: Parser tok (a -> b) -> Parser tok a -> Parser tok b
+    Parser u <*> Parser v = Parser f where
+        f xs = case u xs of 
+            Nothing       -> Nothing
+            Just (xs', g) -> case v xs' of 
+                Nothing        -> Nothing
+                Just (xs'', x) -> Just (xs'', g x)
 
 {-
 GHCi> runParser (pure (,) <*> digit <*> digit) "12AB"
@@ -132,13 +132,13 @@ empty - парсер, всегда возвращающий неудачу;
 -}
 
 instance Alternative (Parser tok) where
-  empty :: Parser tok a
-  empty = Parser $ const Nothing
-  (<|>) :: Parser tok a -> Parser tok a -> Parser tok a
-  Parser u <|> Parser v = Parser f where 
-    f xs = case u xs of
-      Nothing -> v xs
-      z       -> z
+    empty :: Parser tok a
+    empty = Parser $ const Nothing
+    (<|>) :: Parser tok a -> Parser tok a -> Parser tok a
+    Parser u <|> Parser v = Parser f where 
+        f xs = case u xs of
+            Nothing -> v xs
+            z       -> z
 
 -- END OF CODE FOR THE TASK
 
@@ -151,4 +151,43 @@ nat = go <$> some digit
         go = foldl (\a b -> 10 * a + b) 0
 
 -- task 4
+
+data Triple a = Tr a a a deriving (Eq,Show)
+
+instance Functor Triple where 
+    fmap :: (a -> b) -> Triple a -> Triple b
+    fmap f (Tr x1 x2 x3) = Tr (f x1) (f x2) (f x3)
+
+instance Applicative Triple where
+    pure :: a -> Triple a
+    pure x = Tr x x x
+
+    (<*>) :: Triple (a -> b) -> Triple a -> Triple b
+    (Tr f1 f2 f3) <*> (Tr x1 x2 x3) = Tr (f1 x1) (f2 x2) (f3 x3)
+
+instance Foldable Triple where 
+    foldr :: (a -> b -> b) -> b -> Triple a -> b
+    foldr f x (Tr x1 x2 x3) = x1 `f` (x2 `f` (x3 `f` x))
+
+instance Traversable Triple where
+    sequenceA :: Applicative f => Triple (f a) -> f (Triple a)
+    sequenceA (Tr x1 x2 x3) = Tr <$> x1 <*> x2 <*> x3
+
+-- task 5
+
+data Tree a = Nil | Branch (Tree a) a (Tree a)
+    deriving (Eq, Show)
+
+instance Functor Tree where
+    fmap :: (a -> b) -> Tree a -> Tree b
+    fmap = fmapDefault
+
+instance Foldable Tree where 
+    foldMap :: Monoid m => (a -> m) -> Tree a -> m
+    foldMap = foldMapDefault
+
+instance Traversable Tree where
+    traverse :: Applicative f => (a -> f b) -> Tree a -> f (Tree b)
+    traverse _ Nil = pure Nil
+    traverse f (Branch l x r) = Branch <$> traverse f l <*> f x <*> traverse f r
 

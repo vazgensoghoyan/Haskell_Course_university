@@ -149,3 +149,6 @@ nat = go <$> some digit
     where 
         go :: Num a => [a] -> a
         go = foldl (\a b -> 10 * a + b) 0
+
+-- task 4
+

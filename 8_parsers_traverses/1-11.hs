@@ -200,7 +200,7 @@ instance (Foldable f, Foldable g) => Foldable (Cmps f g) where
     foldMap :: Monoid m => (a -> m) -> Cmps f g a -> m
     foldMap h v = foldMap (foldMap h) (getCmps v)
 
--- task 6
+-- task 7
 
 instance (Functor f, Functor g) => Functor (Cmps f g) where
     fmap :: (Functor f, Functor g) => (a -> b) -> Cmps f g a -> Cmps f g b
@@ -218,7 +218,7 @@ instance (Traversable f, Traversable g) => Traversable (Cmps f g) where
         (a -> h b) -> Cmps f g a -> h (Cmps f g b)
     traverse func x = Cmps <$> traverse sequenceA (getCmps (fmap func x))
 
--- task 7
+-- task 8
 
 newtype Parser a = Parser { apply :: String -> [(a, String)] }
 
@@ -264,7 +264,7 @@ instance Monoidal ZipList where
 
 -- END OF DATA FOR NEXT TASK
 
--- task 8
+-- task 9
 
 instance Monoidal Maybe where
     unit :: Maybe ()
@@ -288,7 +288,7 @@ instance Monoidal ((->) e) where
     (*&*) :: (e -> a) -> (e -> b) -> e -> (a, b)
     f *&* g = \x -> (f x, g x)
 
--- task 9
+-- task 10
 
 unit' :: Applicative f => f ()
 unit' = pure ()
@@ -296,7 +296,7 @@ unit' = pure ()
 pair' :: Applicative f => f a -> f b -> f (a,b)
 pair' x y = (,) <$> x <*> y
 
--- task 10
+-- task 11
 
 pure' :: Monoidal f => a -> f a
 pure' x = fmap (const x) unit

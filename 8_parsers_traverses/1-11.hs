@@ -47,48 +47,48 @@ instance Traversable NEList where
 
 -- SOME CODE FOR THE TASK
 
-newtype Parser tok a = Parser { runParser :: [tok] ->  Maybe ([tok],a) }
+newtype Parser' tok a = Parser' { runParser' :: [tok] ->  Maybe ([tok],a) }
 
-charA :: Parser Char Char
-charA = Parser f where
+charA :: Parser' Char Char
+charA = Parser' f where
     f (c:cs) | c == 'A' = Just (cs,c)
     f _                 = Nothing
 
 {-
-GHCi> runParser charA "ABC"
+GHCi> runParser' charA "ABC"
 Just ('A',"BC")
-GHCi> runParser charA "BCD"
+GHCi> runParser' charA "BCD"
 Nothing
 -}
 
-satisfy :: (tok -> Bool) -> Parser tok tok
-satisfy pr = Parser f where
+satisfy :: (tok -> Bool) -> Parser' tok tok
+satisfy pr = Parser' f where
     f (c:cs) | pr c  = Just (cs,c)
     f _              = Nothing
 
 {-
-GHCi> runParser (satisfy isUpper) "ABC"
+GHCi> runParser' (satisfy isUpper) "ABC"
 Just ('A',"BC")
-GHCi> runParser (satisfy isLower) "ABC"
+GHCi> runParser' (satisfy isLower) "ABC"
 Nothing
 -}
 
-lower :: Parser Char Char
+lower :: Parser' Char Char
 lower = satisfy isLower
 
-char :: Char -> Parser Char Char
+char :: Char -> Parser' Char Char
 char c = satisfy (== c)
 
-digit :: Parser Char Int
+digit :: Parser' Char Int
 digit = digitToInt <$> satisfy isDigit
 -- для этого
-instance Functor (Parser tok) where
-    fmap :: (a -> b) -> Parser tok a -> Parser tok b
-    fmap g (Parser p) = Parser $ (fmap . fmap . fmap) g p
+instance Functor (Parser' tok) where
+    fmap :: (a -> b) -> Parser' tok a -> Parser' tok b
+    fmap g (Parser' p) = Parser' $ (fmap . fmap . fmap) g p
 {-
-GHCi> runParser digit "12AB"
+GHCi> runParser' digit "12AB"
 Just ("2AB",1)
-GHCi> runParser digit "AB12"
+GHCi> runParser' digit "AB12"
 Nothing
 -}
 
@@ -98,11 +98,11 @@ pure: парсер, всегда возвращающий заданное зн�
 (<*>): нужно получить результаты первого парсера, затем
 второго, а после этого применить первые ко вторым.
 -}
-instance Applicative (Parser tok) where
-    pure :: a -> Parser tok a
-    pure x = Parser $ \s -> Just (s, x)
-    (<*>) :: Parser tok (a -> b) -> Parser tok a -> Parser tok b
-    Parser u <*> Parser v = Parser f where
+instance Applicative (Parser' tok) where
+    pure :: a -> Parser' tok a
+    pure x = Parser' $ \s -> Just (s, x)
+    (<*>) :: Parser' tok (a -> b) -> Parser' tok a -> Parser' tok b
+    Parser' u <*> Parser' v = Parser' f where
         f xs = case u xs of
             Nothing       -> Nothing
             Just (xs', g) -> case v xs' of
@@ -110,16 +110,16 @@ instance Applicative (Parser tok) where
                 Just (xs'', x) -> Just (xs'', g x)
 
 {-
-GHCi> runParser (pure (,) <*> digit <*> digit) "12AB"
+GHCi> runParser' (pure (,) <*> digit <*> digit) "12AB"
 Just ("AB",(1,2))
-GHCi> runParser (pure (,) <*> digit <*> digit) "1AB2"
+GHCi> runParser' (pure (,) <*> digit <*> digit) "1AB2"
 Nothing
 -}
 
-multiplication :: Parser Char Int
+multiplication :: Parser' Char Int
 multiplication = (*) <$> digit <* char '*' <*> digit
 {-
-GHCi>  runParser multiplication "6*7"
+GHCi>  runParser' multiplication "6*7"
 Just ("",42)
 -}
 
@@ -131,11 +131,11 @@ empty - парсер, всегда возвращающий неудачу;
 <|> - пробуем первый, при неудаче пробуем второй на исходной строке.
 -}
 
-instance Alternative (Parser tok) where
-    empty :: Parser tok a
-    empty = Parser $ const Nothing
-    (<|>) :: Parser tok a -> Parser tok a -> Parser tok a
-    Parser u <|> Parser v = Parser f where
+instance Alternative (Parser' tok) where
+    empty :: Parser' tok a
+    empty = Parser' $ const Nothing
+    (<|>) :: Parser' tok a -> Parser' tok a -> Parser' tok a
+    Parser' u <|> Parser' v = Parser' f where
         f xs = case u xs of
             Nothing -> v xs
             z       -> z
@@ -144,7 +144,7 @@ instance Alternative (Parser tok) where
 
 -- THE TASK
 
-nat :: Parser Char Int
+nat :: Parser' Char Int
 nat = go <$> some digit
     where
         go :: Num a => [a] -> a
@@ -217,3 +217,29 @@ instance (Traversable f, Traversable g) => Traversable (Cmps f g) where
     traverse :: (Traversable f, Traversable g, Applicative h) =>
         (a -> h b) -> Cmps f g a -> h (Cmps f g b)
     traverse func x = Cmps <$> traverse sequenceA (getCmps (fmap func x))
+
+-- task 7
+
+newtype Parser a = Parser { apply :: String -> [(a, String)] }
+
+parse :: Parser a -> String -> [a]
+parse p = map fst . filter (null . snd) . apply p
+
+instance Functor Parser where
+    fmap :: (a -> b) -> Parser a -> Parser b
+    fmap f (Parser g) = Parser $ fmap (\(a,b) -> (f a, b)) . g
+
+instance Applicative Parser where
+    pure :: a -> Parser a
+    pure x = Parser $ \s -> [(x, s)]
+
+    (<*>) :: Parser (a -> b) -> Parser a -> Parser b
+    (Parser f) <*> (Parser x) = Parser $ \s ->
+        [ (f a, s'') | (f, s')  <- f s , (a, s'') <- x s']
+
+instance Alternative Parser where
+    empty :: Parser a
+    empty = Parser $ const []
+
+    (<|>) :: Parser a -> Parser a -> Parser a
+    (Parser f) <|> (Parser g) = Parser $ \s -> f s ++ g s

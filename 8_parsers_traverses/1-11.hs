@@ -5,7 +5,7 @@ import Data.Traversable (fmapDefault, foldMapDefault)
 
 -- task 1
 
-data Result a = Ok a | Error String 
+data Result a = Ok a | Error String
   deriving (Eq,Show)
 
 instance Functor Result where
@@ -13,12 +13,12 @@ instance Functor Result where
     fmap _ (Error s) = Error s
     fmap f (Ok v) = Ok $ f v
 
-instance Foldable Result where 
+instance Foldable Result where
     foldr :: (a -> b -> b) -> b -> Result a -> b
     foldr _ x (Error s) = x
     foldr f x (Ok v) = f v x
 
-instance Traversable Result where 
+instance Traversable Result where
     traverse :: Applicative f => (a -> f b) -> Result a -> f (Result b)
     traverse _ (Error s) = pure (Error s)
     traverse f (Ok v) = fmap Ok (f v)
@@ -103,9 +103,9 @@ instance Applicative (Parser tok) where
     pure x = Parser $ \s -> Just (s, x)
     (<*>) :: Parser tok (a -> b) -> Parser tok a -> Parser tok b
     Parser u <*> Parser v = Parser f where
-        f xs = case u xs of 
+        f xs = case u xs of
             Nothing       -> Nothing
-            Just (xs', g) -> case v xs' of 
+            Just (xs', g) -> case v xs' of
                 Nothing        -> Nothing
                 Just (xs'', x) -> Just (xs'', g x)
 
@@ -135,7 +135,7 @@ instance Alternative (Parser tok) where
     empty :: Parser tok a
     empty = Parser $ const Nothing
     (<|>) :: Parser tok a -> Parser tok a -> Parser tok a
-    Parser u <|> Parser v = Parser f where 
+    Parser u <|> Parser v = Parser f where
         f xs = case u xs of
             Nothing -> v xs
             z       -> z
@@ -146,7 +146,7 @@ instance Alternative (Parser tok) where
 
 nat :: Parser Char Int
 nat = go <$> some digit
-    where 
+    where
         go :: Num a => [a] -> a
         go = foldl (\a b -> 10 * a + b) 0
 
@@ -154,7 +154,7 @@ nat = go <$> some digit
 
 data Triple a = Tr a a a deriving (Eq,Show)
 
-instance Functor Triple where 
+instance Functor Triple where
     fmap :: (a -> b) -> Triple a -> Triple b
     fmap f (Tr x1 x2 x3) = Tr (f x1) (f x2) (f x3)
 
@@ -165,7 +165,7 @@ instance Applicative Triple where
     (<*>) :: Triple (a -> b) -> Triple a -> Triple b
     (Tr f1 f2 f3) <*> (Tr x1 x2 x3) = Tr (f1 x1) (f2 x2) (f3 x3)
 
-instance Foldable Triple where 
+instance Foldable Triple where
     foldr :: (a -> b -> b) -> b -> Triple a -> b
     foldr f x (Tr x1 x2 x3) = x1 `f` (x2 `f` (x3 `f` x))
 
@@ -182,7 +182,7 @@ instance Functor Tree where
     fmap :: (a -> b) -> Tree a -> Tree b
     fmap = fmapDefault
 
-instance Foldable Tree where 
+instance Foldable Tree where
     foldMap :: Monoid m => (a -> m) -> Tree a -> m
     foldMap = foldMapDefault
 
@@ -191,3 +191,29 @@ instance Traversable Tree where
     traverse _ Nil = pure Nil
     traverse f (Branch l x r) = Branch <$> traverse f l <*> f x <*> traverse f r
 
+-- task 6
+
+newtype Cmps f g x = Cmps { getCmps :: f (g x) }
+    deriving (Eq,Show)
+
+instance (Foldable f, Foldable g) => Foldable (Cmps f g) where
+    foldMap :: Monoid m => (a -> m) -> Cmps f g a -> m
+    foldMap h v = foldMap (foldMap h) (getCmps v)
+
+-- task 6
+
+instance (Functor f, Functor g) => Functor (Cmps f g) where
+    fmap :: (Functor f, Functor g) => (a -> b) -> Cmps f g a -> Cmps f g b
+    fmap f (Cmps v) = Cmps $ fmap (fmap f) v
+
+instance (Applicative f, Applicative g) => Applicative (Cmps f g) where
+    pure :: (Applicative f, Applicative g) => a -> Cmps f g a
+    pure x = Cmps (pure (pure x))
+
+    (<*>) :: (Applicative f, Applicative g) => Cmps f g (a -> b) -> Cmps f g a -> Cmps f g b
+    (Cmps x) <*> (Cmps y) = Cmps $ (<*>) <$> x <*> y
+
+instance (Traversable f, Traversable g) => Traversable (Cmps f g) where
+    traverse :: (Traversable f, Traversable g, Applicative h) =>
+        (a -> h b) -> Cmps f g a -> h (Cmps f g b)
+    traverse func x = Cmps <$> traverse sequenceA (getCmps (fmap func x))

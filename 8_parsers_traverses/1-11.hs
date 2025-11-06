@@ -243,3 +243,47 @@ instance Alternative Parser where
 
     (<|>) :: Parser a -> Parser a -> Parser a
     (Parser f) <|> (Parser g) = Parser $ \s -> f s ++ g s
+
+-- DATA FOR NEXT TASK
+
+class Functor f => Monoidal f where
+    unit  :: f ()
+    (*&*) :: f a -> f b -> f (a,b)
+
+instance Monoidal [] where
+    unit :: [()]
+    unit = [()]
+    (*&*) :: [a] -> [b] -> [(a, b)]
+    xs *&* ys = [ (x,y) | x <- xs, y <- ys ]
+  
+instance Monoidal ZipList where
+    unit :: ZipList ()
+    unit = ZipList (repeat ())
+    (*&*) :: ZipList a -> ZipList b -> ZipList (a, b)
+    (ZipList xs) *&* (ZipList ys) = ZipList (zip xs ys)
+
+-- END OF DATA FOR NEXT TASK
+
+-- task 8
+
+instance Monoidal Maybe where
+    unit :: Maybe ()
+    unit = Just ()
+
+    (*&*) :: Maybe a -> Maybe b -> Maybe (a, b)
+    (Just x) *&* (Just y) = Just (x, y)
+    _ *&* _ = Nothing 
+
+instance Monoid s => Monoidal ((,) s) where
+    unit :: Monoid s => (s, ())
+    unit = (mempty, ())
+
+    (*&*) :: Monoid s => (s, a) -> (s, b) -> (s, (a, b))
+    (s1, x) *&* (s2, y) = (s1 <> s2, (x, y))
+
+instance Monoidal ((->) e) where
+    unit :: e -> ()
+    unit = const ()
+
+    (*&*) :: (e -> a) -> (e -> b) -> e -> (a, b)
+    f *&* g = \x -> (f x, g x)

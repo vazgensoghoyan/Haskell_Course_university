@@ -287,3 +287,19 @@ instance Monoidal ((->) e) where
 
     (*&*) :: (e -> a) -> (e -> b) -> e -> (a, b)
     f *&* g = \x -> (f x, g x)
+
+-- task 9
+
+unit' :: Applicative f => f ()
+unit' = pure ()
+
+pair' :: Applicative f => f a -> f b -> f (a,b)
+pair' x y = (,) <$> x <*> y
+
+-- task 10
+
+pure' :: Monoidal f => a -> f a
+pure' x = fmap (const x) unit
+
+ap' :: Monoidal f => f (a -> b) -> f a -> f b
+ap' x y = fmap (\(a, b) -> a b) (x *&* y)

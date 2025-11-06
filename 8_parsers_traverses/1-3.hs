@@ -19,3 +19,23 @@ instance Traversable Result where
     traverse :: Applicative f => (a -> f b) -> Result a -> f (Result b)
     traverse _ (Error s) = pure (Error s)
     traverse f (Ok v) = fmap Ok (f v)
+
+-- task 2
+
+data NEList a = Single a | Cons a (NEList a)
+    deriving (Eq,Show)
+
+instance Functor NEList where
+    fmap :: (a -> b) -> NEList a -> NEList b
+    fmap f (Single x) = Single $ f x
+    fmap f (Cons x xs) = Cons (f x) (fmap f xs)
+
+instance Foldable NEList where
+    foldMap :: Monoid m => (a -> m) -> NEList a -> m
+    foldMap f (Single x) = f x
+    foldMap f (Cons x xs) = f x <> foldMap f xs
+
+instance Traversable NEList where
+    sequenceA :: Applicative f => NEList (f a) -> f (NEList a)
+    sequenceA (Single x) = fmap Single x
+    sequenceA (Cons x xs) = Cons <$> x <*> sequenceA xs

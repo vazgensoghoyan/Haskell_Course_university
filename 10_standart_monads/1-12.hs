@@ -1,8 +1,11 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 import Control.Monad.Writer
 import Control.Monad.State
+import Control.Monad (replicateM)
+import Control.Monad.Except
 import Data.IORef
 import System.Random
-import Control.Monad (replicateM)
 
 -- task 1
 
@@ -125,3 +128,22 @@ avgdev'' k n =
         chunks xs = take n xs : chunks (drop n xs)
         deviations = map (\s -> abs (fromIntegral (sum s) - fromIntegral n / 2)) (chunks series)
     in sum deviations / fromIntegral k
+
+-- task 9
+
+data ListIndexError = 
+    ErrTooLargeIndex Int 
+  | ErrNegativeIndex 
+  | OtherErr String
+  deriving (Eq, Show)
+
+infixl 9 !!!
+
+(!!!) :: MonadError ListIndexError m => [a] -> Int -> m a
+xs !!! n
+    | n < 0     = throwError ErrNegativeIndex
+    | otherwise = go xs n n
+  where
+    go [] _ origIdx   = throwError (ErrTooLargeIndex origIdx)
+    go (y:ys) 0 _     = return y
+    go (_:ys) i origIdx = go ys (i-1) origIdx

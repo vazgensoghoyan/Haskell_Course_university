@@ -5,8 +5,12 @@
 import Control.Monad.Writer
 import Control.Monad.State
 import Control.Monad.Except
+import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Trans.Except
 import Control.Monad (MonadPlus(..), guard, replicateM)
 import Control.Applicative (Alternative(..))
+import Data.Foldable (msum)
+import Data.Char (isNumber, isPunctuation)
 import Data.Char (digitToInt, isHexDigit, toUpper)
 import Data.IORef
 import System.Random
@@ -235,3 +239,32 @@ test s = str
       n <- parseHex s
       return $ show n
       `catchError` printError
+
+-- task 12
+
+newtype PwdError = PwdError String
+
+type PwdErrorIOMonad = ExceptT PwdError IO
+
+askPassword :: PwdErrorIOMonad ()
+askPassword = do
+  liftIO $ putStrLn "Enter your new password:"
+  value <- msum $ repeat getValidPassword
+  liftIO $ putStrLn "Storing in database..."
+
+instance Semigroup PwdError where
+  (PwdError a) <> (PwdError b) = PwdError (a ++ "; " ++ b)
+
+instance Monoid PwdError where
+  mempty = PwdError ""
+
+getValidPassword :: PwdErrorIOMonad String
+getValidPassword = do
+  s <- liftIO getLine
+  if length s < 8
+    then liftIO (putStrLn "Incorrect input: password is too short!") >> throwE (PwdError "too short")
+  else if not (any isNumber s)
+    then liftIO (putStrLn "Incorrect input: password must contain some digits!") >> throwE (PwdError "no digits")
+  else if not (any isPunctuation s)
+    then liftIO (putStrLn "Incorrect input: password must contain some punctuations!") >> throwE (PwdError "no punctuation")
+  else return s

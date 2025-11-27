@@ -1,9 +1,12 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 import Control.Monad.Writer
 import Control.Monad.State
-import Control.Monad (replicateM)
 import Control.Monad.Except
+import Control.Monad (MonadPlus(..), guard, replicateM)
+import Control.Applicative (Alternative(..))
 import Data.IORef
 import System.Random
 
@@ -147,3 +150,59 @@ xs !!! n
     go [] _ origIdx   = throwError (ErrTooLargeIndex origIdx)
     go (y:ys) 0 _     = return y
     go (_:ys) i origIdx = go ys (i-1) origIdx
+
+-- task 10
+
+data Excep a = Err String | Ok a
+  deriving (Eq, Show)
+
+instance Functor Excep where
+  fmap f (Ok x) = Ok (f x)
+  fmap _ (Err e) = Err e
+
+instance Applicative Excep where
+  pure = Ok
+  Ok f  <*> Ok x  = Ok (f x)
+  Err e <*> _ = Err e
+  _ <*> Err e = Err e
+
+instance Monad Excep where
+  Ok x >>= f = f x
+  Err e >>= _ = Err e
+  return = pure
+
+instance MonadFail Excep where
+  fail _ = Err "Monad.fail error."
+
+instance Alternative Excep where
+  empty = Err "Alternative.empty error."
+  Ok x <|> _ = Ok x
+  Err _ <|> r = r
+
+instance MonadPlus Excep where
+  mzero = empty
+  mplus = (<|>)
+
+instance MonadError String Excep where
+  throwError = Err
+  catchError (Ok x) _ = Ok x
+  catchError (Err e) h = h e
+
+(?/) :: MonadError String m => Double -> Double -> m Double
+x ?/ 0 = throwError "Division by 0."
+x ?/ y = return (x / y)
+
+example :: Double -> Double -> Excep String
+example x y = action `catchError` returnError
+  where
+    action = do
+      q <- x ?/ y
+      guard (q >= 0)
+      if q > 100
+        then do
+          100 <- return q
+          undefined
+        else return $ show q
+
+    returnError :: String -> Excep String
+    returnError e = Ok e

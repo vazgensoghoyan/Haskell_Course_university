@@ -1,5 +1,6 @@
 import Control.Monad.Writer
 import Control.Monad.State
+import Data.IORef
 
 -- task 1
 
@@ -64,5 +65,16 @@ fib n = fst $ execState (go n) (0,1)
 
 fibStep :: State (Integer,Integer) ()
 fibStep = do
-    (a,b) <- get
-    put (b, a+b)
+  (a,b) <- get
+  put (b, a+b)
+
+-- task 5
+
+while :: IORef a -> (a -> Bool) -> IO () -> IO ()
+while ref p action = do
+  val <- readIORef ref
+  if p val
+    then do
+      action
+      while ref p action
+    else return ()

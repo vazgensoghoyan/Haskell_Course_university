@@ -1,4 +1,5 @@
 import Control.Monad.Writer
+import Control.Monad.State
 
 -- task 1
 
@@ -36,6 +37,9 @@ minusLoggedR b xs = writer (go b xs)
 -- task 3
 
 minusLoggedL :: (Show a, Num a) => a -> [a] -> Writer String a
+minusLoggedL acc [] = do
+    tell (show acc)
+    return acc
 minusLoggedL acc xs = do
     let (result, log) = foldl step (acc, "") xs
     tell log
@@ -47,3 +51,18 @@ minusLoggedL acc xs = do
                      then "(" ++ show accum ++ "-" ++ show x ++ ")"
                      else "(" ++ log ++ "-" ++ show x ++ ")"
         in (newAcc, newLog)
+
+-- task 4
+
+fib :: Int -> Integer
+fib n = fst $ execState (go n) (0,1)
+  where
+    go 0 = return ()
+    go k = do
+        fibStep
+        go (k-1)
+
+fibStep :: State (Integer,Integer) ()
+fibStep = do
+    (a,b) <- get
+    put (b, a+b)

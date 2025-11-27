@@ -7,6 +7,7 @@ import Control.Monad.State
 import Control.Monad.Except
 import Control.Monad (MonadPlus(..), guard, replicateM)
 import Control.Applicative (Alternative(..))
+import Data.Char (digitToInt, isHexDigit, toUpper)
 import Data.IORef
 import System.Random
 
@@ -206,3 +207,31 @@ example x y = action `catchError` returnError
 
     returnError :: String -> Excep String
     returnError e = Ok e
+
+-- task 11
+
+data ParseError = ParseError { location :: Int, reason :: String }
+  deriving (Eq, Show)
+
+type ParseMonad = Either ParseError
+
+parseHex :: String -> ParseMonad Integer
+parseHex s = go s 0 0
+  where
+    go [] _ acc = Right acc
+    go (c:cs) pos acc
+      | isHexDigit c =
+          let val = toInteger (digitToInt c)
+          in go cs (pos + 1) (acc * 16 + val)
+      | otherwise = Left $ ParseError (pos+1) (c : ": invalid digit")
+
+printError :: ParseError -> ParseMonad String
+printError (ParseError pos reason) = Right $ "At pos " ++ show pos ++ ": " ++ reason
+
+test :: String -> String
+test s = str
+  where
+    Right str = do
+      n <- parseHex s
+      return $ show n
+      `catchError` printError

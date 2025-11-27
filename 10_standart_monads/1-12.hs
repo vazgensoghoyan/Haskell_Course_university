@@ -1,6 +1,8 @@
 import Control.Monad.Writer
 import Control.Monad.State
 import Data.IORef
+import System.Random
+import Control.Monad (replicateM)
 
 -- task 1
 
@@ -78,3 +80,48 @@ while ref p action = do
       action
       while ref p action
     else return ()
+
+-- task 6
+
+
+avgdev :: Int -> Int -> IO Double
+avgdev k n = do
+    deviations <- replicateM k $ do
+        series <- replicateM n $ randomRIO (0 :: Int, 1)
+        let heads = sum series
+            dev   = abs (fromIntegral heads - fromIntegral n / 2)
+        return dev
+    return $ sum deviations / fromIntegral k
+
+-- task 7
+
+randomRState :: (Random a, RandomGen g) => (a, a) -> State g a
+randomRState bounds = do
+    gen <- get
+    let (val, gen') = randomR bounds gen
+    put gen'
+    return val
+
+flipSeries :: Int -> State StdGen Int
+flipSeries n = do
+    flips <- replicateM n (randomRState (0 :: Int, 1))  -- 0=решка, 1=орёл
+    return $ sum flips
+
+avgdev' :: Int -> Int -> State StdGen Double
+avgdev' k n = do
+    deviations <- replicateM k $ do
+        heads <- flipSeries n
+        return $ abs (fromIntegral heads - fromIntegral n / 2)
+    return $ sum deviations / fromIntegral k
+
+-- task 8
+
+avgdev'' :: Int -> Int -> Double
+avgdev'' k n =
+    let gen = mkStdGen 777
+        flips = randomRs (0 :: Int, 1) gen
+        series = take (k * n) flips
+        chunks [] = []
+        chunks xs = take n xs : chunks (drop n xs)
+        deviations = map (\s -> abs (fromIntegral (sum s) - fromIntegral n / 2)) (chunks series)
+    in sum deviations / fromIntegral k

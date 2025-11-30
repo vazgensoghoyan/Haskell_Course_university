@@ -3,15 +3,17 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 import Control.Monad.Writer
+    ( MonadIO(liftIO), MonadWriter(tell, writer), Writer )
 import Control.Monad.State
-import Control.Monad.Except
+    ( MonadState(put, get), execState, State )
+import Control.Monad.Except ( ExceptT, MonadError(..) )
 import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Trans.Except
-import Control.Monad (MonadPlus(..), guard, replicateM)
+import Control.Monad 
+    (MonadPlus(..), guard, replicateM, when)
 import Control.Applicative (Alternative(..))
 import Data.Foldable (msum)
-import Data.Char (isNumber, isPunctuation)
-import Data.Char (digitToInt, isHexDigit, toUpper)
+import Data.Char
+    ( isNumber, isPunctuation, digitToInt, isHexDigit, toUpper )
 import Data.IORef
 import System.Random
 
@@ -23,7 +25,7 @@ instance Functor Logged where
   fmap f (Logged s a) = Logged s (f a)
 
 instance Applicative Logged where
-  pure x = Logged "" x
+  pure = Logged ""
   (Logged s f) <*> (Logged s' x) = Logged (s' ++ s) (f x)
 
 instance Monad Logged where
@@ -43,7 +45,7 @@ minusLoggedR b xs = writer (go b xs)
     go :: (Show a, Num a) => a -> [a] -> (a, String)
     go b []     = (b, show b)
     go b (x:xs) =
-      let (r, lr) = go b xs 
+      let (r, lr) = go b xs
           val     = x - r
           logStr  = "(" ++ show x ++ "-" ++ lr ++ ")"
       in (val, logStr)
@@ -86,11 +88,9 @@ fibStep = do
 while :: IORef a -> (a -> Bool) -> IO () -> IO ()
 while ref p action = do
   val <- readIORef ref
-  if p val
-    then do
+  when (p val) $ do
       action
       while ref p action
-    else return ()
 
 -- task 6
 
@@ -139,9 +139,9 @@ avgdev'' k n =
 
 -- task 9
 
-data ListIndexError = 
-    ErrTooLargeIndex Int 
-  | ErrNegativeIndex 
+data ListIndexError =
+    ErrTooLargeIndex Int
+  | ErrNegativeIndex
   | OtherErr String
   deriving (Eq, Show)
 
@@ -210,7 +210,7 @@ example x y = action `catchError` returnError
         else return $ show q
 
     returnError :: String -> Excep String
-    returnError e = Ok e
+    returnError = Ok
 
 -- task 11
 
@@ -262,9 +262,9 @@ getValidPassword :: PwdErrorIOMonad String
 getValidPassword = do
   s <- liftIO getLine
   if length s < 8
-    then liftIO (putStrLn "Incorrect input: password is too short!") >> throwE (PwdError "too short")
+    then liftIO (putStrLn "Incorrect input: password is too short!") >> throwError (PwdError "too short")
   else if not (any isNumber s)
-    then liftIO (putStrLn "Incorrect input: password must contain some digits!") >> throwE (PwdError "no digits")
+    then liftIO (putStrLn "Incorrect input: password must contain some digits!") >> throwError (PwdError "no digits")
   else if not (any isPunctuation s)
-    then liftIO (putStrLn "Incorrect input: password must contain some punctuations!") >> throwE (PwdError "no punctuation")
+    then liftIO (putStrLn "Incorrect input: password must contain some punctuations!") >> throwError (PwdError "no punctuation")
   else return s

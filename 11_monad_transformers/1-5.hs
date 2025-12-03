@@ -1,4 +1,5 @@
 import Control.Monad.Identity
+import Control.Monad.RWS
 
 -- task 1
 
@@ -29,3 +30,21 @@ instance MonadFail m => MonadFail (StrRdrT m)  where
     fail = StrRdrT . const . fail
 
 -- task 2
+
+askStrRdr :: Monad m => StrRdrT m String
+askStrRdr = asksStrRdr id
+
+asksStrRdr :: Monad m => (String -> a) -> StrRdrT m a
+asksStrRdr f = StrRdrT $ \s -> return (f s)
+
+type StrRdr = StrRdrT Identity
+
+runStrRdr :: StrRdr a -> String -> a
+runStrRdr rd s = runIdentity $ runStrRdrT rd s
+
+-- task 3
+
+instance MonadTrans StrRdrT where
+    lift :: Monad m => m a -> StrRdrT m a
+    lift = StrRdrT . const
+

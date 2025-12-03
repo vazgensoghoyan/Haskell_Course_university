@@ -1,5 +1,7 @@
+{-# LANGUAGE UndecidableInstances #-}
 import Control.Monad.Identity
 import Control.Monad.RWS
+import Control.Monad.State
 
 -- task 1
 
@@ -48,3 +50,35 @@ instance MonadTrans StrRdrT where
     lift :: Monad m => m a -> StrRdrT m a
     lift = StrRdrT . const
 
+-- task 4
+
+instance MonadState s m => MonadState s (StrRdrT m) where
+    get :: MonadState s m => StrRdrT m s
+    get = lift get
+    put :: MonadState s m => s -> StrRdrT m ()
+    put = lift . put
+    state :: MonadState s m => (s -> (a, s)) -> StrRdrT m a
+    state = lift . state
+
+-- task 5
+
+class Monad m => MonadStrRdr m where
+    askSR :: m String
+    asksSR :: (String -> a) -> m a
+    strRdr :: (String -> a) -> m a
+
+instance Monad m => MonadStrRdr (StrRdrT m) where
+    askSR :: StrRdrT m String
+    askSR = asksSR id
+    asksSR :: (String -> a) -> StrRdrT m a
+    asksSR f = StrRdrT $ \s -> return (f s)
+    strRdr :: (String -> a) -> StrRdrT m a
+    strRdr = asksSR
+
+instance MonadStrRdr m => MonadStrRdr (StateT s m) where
+    askSR :: StateT s m String
+    askSR = lift askSR
+    asksSR :: (String -> a) -> StateT s m a
+    asksSR = lift . asksSR
+    strRdr :: (String -> a) -> StateT s m a
+    strRdr = lift . strRdr

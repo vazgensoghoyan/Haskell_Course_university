@@ -1,4 +1,6 @@
+{-# LANGUAGE FlexibleContexts #-}
 import Data.List (union, nub)
+import Control.Monad.Error.Class (MonadError (throwError))
 
 -- GIVEN
 
@@ -8,23 +10,20 @@ infixr 3 :->
 type Symb = String 
 
 -- Терм
-data Expr = Var Symb 
-          | Expr :@ Expr
-          | Lam Symb Expr
-  deriving (Eq,Show)
+data Expr = Var Symb | Expr :@ Expr | Lam Symb Expr
+    deriving (Eq,Show)
 
 -- Тип
-data Type = TVar Symb 
-          | Type :-> Type
-  deriving (Eq,Show)
+data Type = TVar Symb | Type :-> Type 
+    deriving (Eq,Show)
 
 -- Контекст
 newtype Env = Env [(Symb,Type)]
-  deriving (Eq,Show)
+    deriving (Eq,Show)
 
 -- Подстановка
 newtype SubsTy = SubsTy [(Symb, Type)]
-  deriving (Eq,Show)
+    deriving (Eq,Show)
 
 -- TASK 1
 
@@ -42,8 +41,18 @@ extendEnv (Env env) s t = Env $ (s,t):env
 
 freeTVarsEnv :: Env -> [Symb]
 freeTVarsEnv (Env env) = nub $ do 
-    (s, t) <- env
+    (_, t) <- env
     freeTVars t
 
 -- TASK 2
 
+lookupT :: [(Symb, Type)] -> Symb -> Maybe Type
+lookupT [] _ = Nothing
+lookupT ((x,t):xs) s
+    | x == s = Just t
+    | otherwise = lookupT xs s
+
+appEnv :: MonadError String m => Env -> Symb -> m Type
+appEnv (Env xs) v = case lookupT xs v of
+    Nothing -> throwError $ "There is no variable \"" ++ v ++ "\" in the environment."
+    Just t -> return t

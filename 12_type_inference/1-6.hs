@@ -5,6 +5,9 @@ import Data.List (union, nub, group)
 import Control.Monad.Error.Class (MonadError (throwError))
 import Data.Maybe (fromMaybe)
 import qualified Data.Bifunctor
+import Control.Monad.State
+import qualified Data.Set as Set
+import Control.Monad (foldM)
 
 -- GIVEN
 
@@ -13,19 +16,15 @@ infixr 3 :->
 
 type Symb = String
 
--- Терм
 data Expr = Var Symb | Expr :@ Expr | Lam Symb Expr
     deriving (Eq,Show)
 
--- Тип
 data Type = TVar Symb | Type :-> Type
     deriving (Eq,Show)
 
--- Контекст
 newtype Env = Env [(Symb,Type)]
     deriving (Eq,Show)
 
--- Подстановка
 newtype SubsTy = SubsTy [(Symb, Type)]
     deriving (Eq,Show)
 
@@ -118,44 +117,61 @@ unify (a1 :-> a2) (b1 :-> b2) = do
 
 -- TASK 6
 
-fresh :: Symb -> [Symb] -> Symb
-fresh x used
-    | x `elem` used = fresh (x ++ "'") used
-    | otherwise = x
+fresh :: [Symb] -> Symb
+fresh used = head $ filter (`notElem` used) candidates
+    where
+        candidates = [ c : n | n <- "" : map show [1..], c <- ['a'..'z'] ]
 
 equations :: MonadError String m => Env -> Expr -> Type -> m [(Type,Type)]
 
-equations (Env env) (Var s) t =
-    case lookup s env of
-        Nothing -> throwError $ "There is no variable \"" ++ s ++ "\" in the environment."
-        Just st -> return [(t, st)]
+equations env expr t = 
+    let used = freeTVarsEnv env ++ freeTVars t
+    in go used env expr t
+    where
+        go :: MonadError String m => [Symb] -> Env -> Expr -> Type -> m [(Type,Type)]
+        go used env (Var x) t = do
+            tx <- appEnv env x
+            return [(t, tx)]
+        go used env (f :@ x) t = do
+            let new = fresh used
+            let newT = TVar new
+            eqs1 <- go (new:used) env x newT
+            eqs2 <- go (new:used) env f (newT :-> t)
+            return $ eqs1 ++ eqs2
+        go used env (Lam arg body) t = do
+            let alpha = fresh used
+            let beta = fresh (alpha : used)
+            let newUsed = alpha:beta:used
+            eqs <- go newUsed (extendEnv env arg (TVar alpha)) body (TVar beta)
+            return $ (TVar alpha :-> TVar beta, t) : eqs
 
-equations env (f :@ x) t =
-    let freshAlpha = TVar $ fresh "a" (freeTVarsEnv env)
-    in do
-        eq1 <- equations env f (freshAlpha :-> t)
-        eq2 <- equations env x freshAlpha
-        return $ eq1 ++ eq2
-
-equations (Env env) (Lam s body) t =
-    let freshAlpha = TVar $ fresh "a" (freeTVarsEnv (Env env))
-        freshBeta = TVar $ fresh "b" (freeTVarsEnv (Env env))
-        env' = Env ((s, freshAlpha) : env)
-    in do
-        eqs <- equations env' body freshBeta
-        return ((freshAlpha :-> freshBeta, t) : eqs)
-
-squeezeEqs :: [(Type,Type)] -> (Type,Type)
-squeezeEqs [(t1,t2)] = (t1,t2)
-squeezeEqs ((a1,a2):(b1,b2):xs) = squeezeEqs ((a1 :-> b1, a2 :-> b2):xs)
+generateFreshTypes :: [Symb] -> [(Symb, Type)]
+generateFreshTypes vars = go vars []
+    where
+        go [] _ = []
+        go (v:vs) used =
+            let tv = fresh used
+            in (v, TVar tv) : go vs (tv : used)
 
 principalPair :: MonadError String m => Expr -> m (Env,Type)
 principalPair expr = do
-    let fvExpr = freeVars expr
-    let env = fmap (\x -> (x, TVar x)) fvExpr
-    let used = freeTVarsEnv (Env env)
-    let t = fresh "a" used
-    eqs <- equations (Env env) expr (TVar t)
-    let (t1,t2) = squeezeEqs eqs
-    s <- unify t1 t2
-    return (appSubsEnv s (Env env), appSubsTy s (TVar t))
+    let env = Env $ generateFreshTypes $ freeVars expr
+    let used = freeTVarsEnv env
+    let t0 = TVar $ fresh used
+    eqs <- equations env expr t0
+    s <- foldl
+            ( \acc (t1, t2) -> do
+                s1 <- acc
+                s2 <- unify (appSubsTy s1 t1) (appSubsTy s1 t2)
+                return $ s2 <> s1 )
+           (return mempty)
+           eqs
+    return (appSubsEnv s env, appSubsTy s t0)
+
+pP :: Expr -> Either String (Env, Type)
+pP expr = do
+    (env, ty) <- principalPair expr
+    let fv = freeTVarsEnv env `union` freeTVars ty
+    let varsStorage = gaz ++ [s ++ show d | d <- [1 ..], s <- gaz] where gaz = group ['a'..'y'] 
+    let sub = SubsTy $ zip fv (map TVar varsStorage)
+    return (appSubsEnv sub env, appSubsTy sub ty)

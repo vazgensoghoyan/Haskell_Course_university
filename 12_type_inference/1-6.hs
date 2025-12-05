@@ -125,27 +125,30 @@ fresh used = head $ filter (`notElem` used) candidates
         candidates = [ c : n | n <- "" : map show [1..], c <- ['a'..'z'] ]
 
 equations :: MonadError String m => Env -> Expr -> Type -> m [(Type,Type)]
-
-equations env expr t =
+equations env expr t = do
     let used = freeTVarsEnv env ++ freeTVars t
-    in go used env expr t
+    res <- go used env expr t
+    return $ snd res
     where
-        go :: MonadError String m => [Symb] -> Env -> Expr -> Type -> m [(Type,Type)]
-        go used env (Var x) t = do
+        go :: MonadError String m => [Symb] -> Env -> Expr -> Type -> m ([Symb], [(Type,Type)])
+        go _ env (Var x) t = do
             tx <- appEnv env x
-            return [(t, tx)]
+            let used = freeTVars t ++ freeTVars tx
+            return (used, [(t, tx)])
         go used env (f :@ x) t = do
             let new = fresh used
             let newT = TVar new
-            eqs1 <- go (new:used) env x newT
-            eqs2 <- go (new:used) env f (newT :-> t)
-            return $ eqs1 ++ eqs2
+            (u1, eqs1) <- go (new:used) env f (newT :-> t)
+            (u2, eqs2) <- go (new:u1) env x newT
+            let newUsed = new : u1 `union` u2 `union` used
+            return (newUsed, eqs1 ++ eqs2)
         go used env (Lam arg body) t = do
             let alpha = fresh used
             let beta = fresh (alpha : used)
             let newUsed = alpha:beta:used
-            eqs <- go newUsed (extendEnv env arg (TVar alpha)) body (TVar beta)
-            return $ (TVar alpha :-> TVar beta, t) : eqs
+            (u, eqs) <- go newUsed (extendEnv env arg (TVar alpha)) body (TVar beta)
+            let resEqs = (TVar alpha :-> TVar beta, t) : eqs
+            return (newUsed `union` u, resEqs)
 
 generateFreshTypes :: [Symb] -> [(Symb, Type)]
 generateFreshTypes vars = go vars []
@@ -170,8 +173,18 @@ principalPair expr = do
            eqs
     return (appSubsEnv s env, appSubsTy s t0)
 
-pP :: Expr -> Either String (Env, Type)
-pP expr = do
+eqEither :: Expr -> Either String [(Type,Type)]
+eqEither expr = do
+    let env = Env $ generateFreshTypes $ freeVars expr
+    let used = freeTVarsEnv env
+    let t0 = TVar $ fresh used
+    equations env expr t0
+
+ppEither :: Expr -> Either String (Env, Type)
+ppEither = principalPair
+
+ppBeautiful :: Expr -> Either String (Env, Type)
+ppBeautiful expr = do
     (env, ty) <- principalPair expr
     let fv = freeTVarsEnv env `union` freeTVars ty
     let varsStorage = gaz ++ [s ++ show d | d <- [1 ..], s <- gaz] where gaz = group ['a'..'y']

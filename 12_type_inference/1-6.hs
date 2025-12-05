@@ -131,10 +131,10 @@ equations env expr t = do
     return $ snd res
     where
         go :: MonadError String m => [Symb] -> Env -> Expr -> Type -> m ([Symb], [(Type,Type)])
-        go _ env (Var x) t = do
+        go used env (Var x) t = do
             tx <- appEnv env x
-            let used = freeTVars t ++ freeTVars tx
-            return (used, [(t, tx)])
+            let newUsed = freeTVars t `union` freeTVars tx
+            return (used `union` newUsed, [(t, tx)])
         go used env (f :@ x) t = do
             let new = fresh used
             let newT = TVar new
@@ -173,6 +173,8 @@ principalPair expr = do
            eqs
     return (appSubsEnv s env, appSubsTy s t0)
 
+-- my additional convenient functions
+
 eqEither :: Expr -> Either String [(Type,Type)]
 eqEither expr = do
     let env = Env $ generateFreshTypes $ freeVars expr
@@ -190,23 +192,6 @@ ppBeautiful expr = do
     let varsStorage = gaz ++ [s ++ show d | d <- [1 ..], s <- gaz] where gaz = group ['a'..'y']
     let sub = SubsTy $ zip fv (map TVar varsStorage)
     return (appSubsEnv sub env, appSubsTy sub ty)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 -- TEST DATA
 
@@ -322,3 +307,25 @@ tail' = Lam "l" $ fst' :@ app2 l spl zpl
 
 sum' = Lam "l" $ app2 l plus zero
 sum'' = Lam "l" $ app2 l (Lam "h" $ Lam "t" $ app2 plus h t) zero
+
+-- TESTS
+
+{-
+
+GHCi> term = Lam "y" $ Var "x"
+GHCi> env = Env [("x",TVar "a" :-> TVar "b")]
+GHCi> let Right eqs = equations env term (TVar "o") in eqs
+[(TVar "d",TVar "a" :-> TVar "b"),(TVar "c" :-> TVar "d",TVar "o")]
+GHCi> let Left err = equations (Env []) term (TVar "o") in err
+"There is no variable \"x\" in the environment."
+
+GHCi> let Right pp = principalPair (Var "x") in pp
+(Env [("x",TVar "a")],TVar "a")
+GHCi> let Right pp = principalPair (Var "f" :@ Var "x") in pp
+(Env [("f",TVar "a" :-> TVar "b"),("x",TVar "a")],TVar "b")
+GHCi> let Right pp = principalPair (Lam "x" $ Lam "y" $ Var "y") in pp
+(Env [],TVar "a" :-> (TVar "b" :-> TVar "b"))
+GHCi> let Left err = principalPair (Var "x" :@ Var "x") in err
+"Can't unify (TVar \"a\") with (TVar \"a\" :-> TVar \"b\")!"
+
+-}

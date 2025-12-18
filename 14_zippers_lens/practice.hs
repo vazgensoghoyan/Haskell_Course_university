@@ -28,11 +28,22 @@ right (v, CntxT left right prevs) =
     in (rightV, cntxt)
 
 up :: TreeZ a -> TreeZ a
-up = undefined
+up (v, CntxT left right (prev:prevs))
+    | (L, prevV, prevRight) <- prev = 
+        let newLeft = Node left v right
+            cntxt = CntxT newLeft prevRight prevs
+        in (prevV, cntxt)
+    | (r, prevV, prevLeft) <- prev =
+        let newRight = Node left v right
+            cntxt = CntxT prevLeft newRight prevs
+        in (prevV, cntxt)
+
 untz :: TreeZ a -> Tree a
-untz = undefined
+untz (v, CntxT left right []) = Node left v right
+untz treeZ = untz $ up treeZ
+
 updTZ :: a -> TreeZ a -> TreeZ a
-updTZ = undefined
+updTZ newVal (_, cntxt) = (newVal, cntxt)
 
 -- TASK 2
 

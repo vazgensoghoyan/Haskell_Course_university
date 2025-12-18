@@ -49,6 +49,12 @@ updTZ newVal (_, cntxt) = (newVal, cntxt)
 
 type Lens s a = forall f. Functor f => (a -> f a) -> s -> f s
 
+_1my :: Lens (a, b) a
+_1my ret (a,b) = fmap (,b) (ret a)
+
+_2my :: Lens (a, b) b
+_2my ret (a,b) = fmap (a,) (ret b)
+
 lens :: (s -> a) -> (s -> a -> s) -> Lens s a
 lens get set ret s = fmap (set s) (ret $ get s)
 
@@ -77,4 +83,3 @@ over lns fn s = runIdentity $ lns (Identity . fn) s
 
 set :: Lens s a -> a -> s -> s
 set lns a = over lns (const a)
-

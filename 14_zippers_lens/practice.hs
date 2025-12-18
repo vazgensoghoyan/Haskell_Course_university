@@ -1,3 +1,4 @@
+{-# LANGUAGE FunctionalDependencies #-}
 
 
 data Tree a = Empty | Node (Tree a) a (Tree a)
@@ -83,3 +84,26 @@ over lns fn s = runIdentity $ lns (Identity . fn) s
 
 set :: Lens s a -> a -> s -> s
 set lns a = over lns (const a)
+
+-- TASK 3
+
+class Field1 s a | s -> a where
+    _1field :: Lens s a
+
+class Field2 s a | s -> a where
+    _2field :: Lens s a
+
+class Field3 s a | s -> a where
+    _3field :: Lens s a
+
+instance Field1 (a, b, c) a where
+    _1field :: Lens (a, b, c) a
+    _1field ret (a,b,c) = fmap (,b,c) (ret a)
+
+instance Field2 (a, b, c) b where
+    _2field :: Lens (a, b, c) b
+    _2field ret (a,b,c) = fmap (a,,c) (ret b)
+
+instance Field3 (a, b, c) c where
+    _3field :: Lens (a, b, c) c
+    _3field ret (a,b,c) = fmap (a,b,) (ret c)
